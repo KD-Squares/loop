@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Builds
+web/.next/
+web/out/
+server/dist/
+*.tsbuildinfo
+
+# Environment — never commit real keys
+.env
+.env.local
+.env*.local
+web/.env.local
+server/.env
+
+# Backup files — these can contain copies of secrets, NEVER commit them
+*backup*
+*.bak
+*~
+
+# Supabase local
+supabase/.branches
+supabase/.temp
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

@@ -1,0 +1,25 @@
+-- =============================================================================
+-- Loop — seed.sql (OPTIONAL)
+-- Sample data for local development. Safe to leave empty.
+--
+-- NOTE: Creating an auth user must be done via Supabase Auth (the dashboard or
+-- the signup screen), not raw SQL. So this seed only illustrates the shape of a
+-- quiz once you have a host. Replace 'YOUR-HOST-UUID' with a real profiles.id
+-- after you sign up, then run this against your local DB if you want demo data.
+-- =============================================================================
+
+-- Example (commented out — fill in a real host id to use):
+--
+-- with q as (
+--   insert into public.quizzes (host_id, title, status)
+--   values ('YOUR-HOST-UUID', 'Sample Trivia', 'ready')
+--   returning id
+-- )
+-- insert into public.questions (quiz_id, text, type, options, correct_option_id, order_index)
+-- select q.id,
+--        'The Earth is flat.',
+--        'truefalse',
+--        '[{"id":"a","text":"True"},{"id":"b","text":"False"}]'::jsonb,
+--        'b',
+--        0
+-- from q;
