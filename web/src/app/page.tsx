@@ -20,14 +20,14 @@ export default async function HomePage() {
         <BrandMark size="lg" />
 
         <div>
-          <h1 className="font-display text-5xl font-bold leading-[0.95] tracking-tight sm:text-6xl">
-            The whole game,
+          <h1 className="font-display text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl">
+            Learning never ends.
             <br />
-            screen by screen.
+            Keep it looping.
           </h1>
           <p className="mx-auto mt-4 max-w-lg text-lg text-muted">
-            Build a quiz once from a PDF, then play it live with up to 100
-            players racing the clock.
+            Loop turns your lesson into a live quiz the whole class plays from
+            their phones, so every topic comes back around as a game.
           </p>
         </div>
 
@@ -43,16 +43,6 @@ export default async function HomePage() {
             <Link href="/login" className="btn-secondary py-4 text-lg">
               Host sign in
             </Link>
-          )}
-        </div>
-
-        <div className="flex flex-wrap justify-center gap-2">
-          {["📄 PDF → quiz", "🔢 6-digit PIN", "⚡ Speed scoring", "🏆 Live leaderboard"].map(
-            (c) => (
-              <span key={c} className="pill bg-white text-muted ring-1 ring-line">
-                {c}
-              </span>
-            )
           )}
         </div>
 
