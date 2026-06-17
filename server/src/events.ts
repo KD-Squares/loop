@@ -117,19 +117,32 @@ export interface ServerToClientEvents {
   }) => void;
 
   // Answer revealed. Host gets full leaderboard; players get their own result.
+  // nextInSeconds tells clients how long until the game auto-advances.
   "game:reveal_host": (payload: {
     roundId: string;
     questionId: string;
     correctOptionId: string;
     leaderboard: LeaderboardRow[];
+    nextInSeconds: number;
+    isLast: boolean;
   }) => void;
 
-  "game:reveal_player": (payload: PlayerRoundResult & { roundId: string }) => void;
+  "game:reveal_player": (
+    payload: PlayerRoundResult & { roundId: string; nextInSeconds: number }
+  ) => void;
 
-  // Game finished — final podium + full ranking.
+  // Game finished — host ONLY gets the full podium + ranking (the big screen).
   "game:finished": (payload: {
     podium: LeaderboardRow[]; // top 3
     leaderboard: LeaderboardRow[]; // full
+    quizTitle: string;
+  }) => void;
+
+  // Players get ONLY their own final placement — never the full leaderboard.
+  "game:finished_player": (payload: {
+    rank: number;
+    totalScore: number;
+    playersCount: number;
     quizTitle: string;
   }) => void;
 

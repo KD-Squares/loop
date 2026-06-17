@@ -25,11 +25,19 @@ export interface ServerToClientEvents {
     questionId: string;
     correctOptionId: string;
     leaderboard: LeaderboardRow[];
+    nextInSeconds: number;
+    isLast: boolean;
   }) => void;
-  "game:reveal_player": (p: PlayerRoundResult) => void;
+  "game:reveal_player": (p: PlayerRoundResult & { nextInSeconds: number }) => void;
   "game:finished": (p: {
     podium: LeaderboardRow[];
     leaderboard: LeaderboardRow[];
+    quizTitle: string;
+  }) => void;
+  "game:finished_player": (p: {
+    rank: number;
+    totalScore: number;
+    playersCount: number;
     quizTitle: string;
   }) => void;
   "game:paused": (p: { reason: string; graceSeconds: number }) => void;

@@ -4,13 +4,18 @@
 // socket connection persists across stages: join -> waiting -> question ->
 // result -> finished. Reconnect is automatic and resumes the same entry (score
 // intact) using a resume token kept in localStorage.
+//
+// Players only ever see THEIR OWN result and final placement — the full
+// leaderboard/podium is shown on the host screen only.
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { connectSocket, type LoopSocket } from "@/lib/socket";
 import AnswerTile from "@/components/game/AnswerTile";
 import Countdown from "@/components/game/Countdown";
-import type { PublicQuestion, PlayerRoundResult, LeaderboardRow } from "@/lib/types";
+import BrandMark from "@/components/brand/BrandMark";
+import PoweredByNdi from "@/components/brand/PoweredByNdi";
+import type { PublicQuestion, PlayerRoundResult } from "@/lib/types";
 
 type Stage =
   | "join"
@@ -37,15 +42,19 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
   const [question, setQuestion] = useState<PublicQuestion | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [result, setResult] = useState<PlayerRoundResult | null>(null);
-  const [finalRank, setFinalRank] = useState<{
+  const [finalPlace, setFinalPlace] = useState<{
     rank: number;
-    leaderboard: LeaderboardRow[];
+    totalScore: number;
+    playersCount: number;
     quizTitle: string;
   } | null>(null);
 
   const storageKey = (p: string) => `loop:resume:${p}`;
+  const nicknameRef = useRef(nickname);
+  useEffect(() => {
+    nicknameRef.current = nickname;
+  }, [nickname]);
 
-  // Wire up socket listeners once.
   useEffect(() => {
     return () => {
       socketRef.current?.disconnect();
@@ -64,14 +73,9 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
       setResult(r);
       setStage("result");
     });
-    socket.on("game:finished", (f) => {
-      // Find my rank from the full leaderboard via my nickname.
-      const mine = f.leaderboard.find((row) => row.nickname === nicknameRef.current);
-      setFinalRank({
-        rank: mine?.rank ?? 0,
-        leaderboard: f.leaderboard,
-        quizTitle: f.quizTitle,
-      });
+    // Players get ONLY their own final placement (no leaderboard/podium).
+    socket.on("game:finished_player", (f) => {
+      setFinalPlace(f);
       setStage("finished");
     });
     socket.on("game:paused", (p) => setPaused(p.reason));
@@ -87,12 +91,6 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
     });
     socket.on("game:error", (p) => setError(p.message));
   }
-
-  // Keep nickname accessible inside socket callbacks.
-  const nicknameRef = useRef(nickname);
-  useEffect(() => {
-    nicknameRef.current = nickname;
-  }, [nickname]);
 
   async function join(e: React.FormEvent) {
     e.preventDefault();
@@ -125,15 +123,14 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
             setError(res?.error ?? "Could not join.");
             return;
           }
-          setNickname(res.nickname); // may be disambiguated
+          setNickname(res.nickname);
           if (typeof window !== "undefined")
             localStorage.setItem(storageKey(cleanPin), res.resumeToken);
-          setStage(res.phase === "lobby" ? "waiting" : "waiting");
+          setStage("waiting");
         }
       );
     };
 
-    // Auto-rejoin on every (re)connect so a dropped player resumes seamlessly.
     socket.off("connect");
     socket.on("connect", doJoin);
     if (socket.connected) doJoin();
@@ -152,10 +149,7 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
         clientSentAt: Date.now(), // hint only; server uses its own clock
       },
       (res: any) => {
-        if (!res?.ok) {
-          // Round may have locked — leave the selection but show a gentle note.
-          setError(res?.error ?? null);
-        }
+        if (!res?.ok) setError(res?.error ?? null);
       }
     );
   }
@@ -165,8 +159,13 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
   if (stage === "join") {
     return (
       <Shell>
-        <h1 className="mb-1 text-center text-2xl font-bold">Join a game</h1>
-        <p className="mb-6 text-center text-sm text-slate-500">
+        <div className="mb-6 flex justify-center">
+          <BrandMark size="md" />
+        </div>
+        <h1 className="font-display mb-1 text-center text-2xl font-bold">
+          Join the game
+        </h1>
+        <p className="mb-6 text-center text-sm text-muted">
           Enter the PIN shown on the host&apos;s screen.
         </p>
         <form onSubmit={join} className="space-y-4">
@@ -174,7 +173,7 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
             inputMode="numeric"
             maxLength={6}
             placeholder="Game PIN"
-            className="input text-center text-2xl tracking-[0.3em]"
+            className="input text-center font-display text-3xl tracking-[0.3em]"
             value={pin}
             onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
           />
@@ -186,12 +185,12 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
             onChange={(e) => setNickname(e.target.value)}
           />
           {error && (
-            <p className="rounded-lg bg-red-50 p-2 text-center text-sm text-red-700">
+            <p className="rounded-xl bg-red-50 p-2 text-center text-sm text-red-700">
               {error}
             </p>
           )}
           <button className="btn-primary w-full py-4 text-lg" disabled={busy}>
-            {busy ? "Joining…" : "Enter"}
+            {busy ? "Joining…" : "Enter →"}
           </button>
         </form>
       </Shell>
@@ -202,10 +201,10 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
     return (
       <Shell>
         <div className="text-center">
-          <h1 className="mb-2 text-2xl font-bold">
+          <h1 className="font-display mb-2 text-2xl font-bold">
             {stage === "kicked" ? "You left the game" : "Game over"}
           </h1>
-          <p className="text-slate-600">{closedReason}</p>
+          <p className="text-muted">{closedReason}</p>
           <button className="btn-primary mt-6" onClick={() => router.push("/play")}>
             Join another game
           </button>
@@ -214,18 +213,24 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
     );
   }
 
-  if (stage === "finished" && finalRank) {
+  if (stage === "finished" && finalPlace) {
+    const medal =
+      finalPlace.rank === 1 ? "🥇" : finalPlace.rank === 2 ? "🥈" : finalPlace.rank === 3 ? "🥉" : "🎉";
     return (
       <Shell>
         <div className="text-center">
-          <p className="text-sm uppercase tracking-wide text-slate-500">
-            {finalRank.quizTitle}
+          <div className="mb-2 animate-pop-in text-6xl">{medal}</div>
+          <p className="text-sm uppercase tracking-wide text-muted">
+            {finalPlace.quizTitle}
           </p>
-          <h1 className="my-3 text-5xl font-black text-brand">
-            #{finalRank.rank}
+          <h1 className="font-display my-2 text-6xl font-bold text-brand">
+            #{finalPlace.rank}
           </h1>
-          <p className="text-slate-600">
-            You finished as {nicknameRef.current}. Thanks for playing!
+          <p className="text-muted">
+            out of {finalPlace.playersCount} · {finalPlace.totalScore.toFixed(1)} pts
+          </p>
+          <p className="mt-1 text-sm text-muted">
+            Nice one, {nicknameRef.current}! Final standings are on the host screen.
           </p>
           <button className="btn-primary mt-6" onClick={() => router.push("/play")}>
             Play again
@@ -235,14 +240,13 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
     );
   }
 
-  // Paused overlay takes priority during play.
   if (paused) {
     return (
       <Shell>
         <div className="text-center">
           <div className="mb-3 text-4xl">⏸</div>
-          <p className="font-semibold text-slate-700">{paused}</p>
-          <p className="mt-2 text-sm text-slate-500">Your score is safe.</p>
+          <p className="font-semibold text-ink">{paused}</p>
+          <p className="mt-2 text-sm text-muted">Your score is safe.</p>
         </div>
       </Shell>
     );
@@ -252,9 +256,9 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
     return (
       <Shell>
         <div className="text-center">
-          <div className="mb-4 h-10 w-10 mx-auto animate-spin rounded-full border-4 border-brand border-t-transparent" />
-          <h1 className="text-xl font-bold">You&apos;re in, {nickname}!</h1>
-          <p className="mt-1 text-slate-500">Waiting for the host to start…</p>
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-brand border-t-transparent" />
+          <h1 className="font-display text-xl font-bold">You&apos;re in, {nickname}!</h1>
+          <p className="mt-1 text-muted">Waiting for the host to start…</p>
         </div>
       </Shell>
     );
@@ -264,13 +268,13 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
     return (
       <Shell wide>
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-sm font-semibold text-slate-500">
+          <span className="pill bg-white text-muted ring-1 ring-line">
             Q{question.index + 1}/{question.total}
           </span>
           <Countdown seconds={question.timeLimitSeconds} roundId={question.roundId} size="sm" />
         </div>
         <div className="card mb-4">
-          <h1 className="text-xl font-bold">{question.text}</h1>
+          <h1 className="font-display text-xl font-bold">{question.text}</h1>
         </div>
         <div className="grid gap-3">
           {question.options.map((o, i) => (
@@ -280,19 +284,15 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
               text={o.text}
               disabled={stage === "answered"}
               state={
-                stage === "answered"
-                  ? selected === o.id
-                    ? "selected"
-                    : "dim"
-                  : "idle"
+                stage === "answered" ? (selected === o.id ? "selected" : "dim") : "idle"
               }
               onClick={() => answer(o.id)}
             />
           ))}
         </div>
         {stage === "answered" && (
-          <p className="mt-4 text-center font-semibold text-slate-600">
-            Answer locked in — waiting for others…
+          <p className="mt-4 text-center font-semibold text-muted">
+            Answer locked in — hang tight…
           </p>
         )}
       </Shell>
@@ -304,32 +304,34 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
       <Shell>
         <div className="text-center">
           <div
-            className={`mb-4 rounded-xl p-6 text-white ${
+            className={`mb-4 rounded-xl2 p-6 text-white ${
               result.correct ? "bg-tile-green" : "bg-tile-red"
             }`}
           >
-            <div className="text-4xl">{result.correct ? "✓" : "✕"}</div>
-            <h1 className="mt-2 text-2xl font-bold">
+            <div className="animate-pop-in text-5xl">{result.correct ? "✓" : "✕"}</div>
+            <h1 className="font-display mt-2 text-2xl font-bold">
               {result.correct ? "Correct!" : "Not this time"}
             </h1>
-            <p className="mt-1 text-lg">
+            <p className="mt-1 text-lg font-semibold">
               +{result.pointsThisRound.toFixed(1)} points
             </p>
           </div>
           <div className="flex justify-around">
             <div>
-              <div className="text-sm text-slate-500">Score</div>
-              <div className="text-2xl font-bold">{result.totalScore.toFixed(1)}</div>
+              <div className="text-sm text-muted">Score</div>
+              <div className="font-display text-2xl font-bold">
+                {result.totalScore.toFixed(1)}
+              </div>
             </div>
             <div>
-              <div className="text-sm text-slate-500">Rank</div>
-              <div className="text-2xl font-bold">
+              <div className="text-sm text-muted">Rank</div>
+              <div className="font-display text-2xl font-bold">
                 #{result.rank}
-                <span className="text-base text-slate-400">/{result.playersCount}</span>
+                <span className="text-base text-muted">/{result.playersCount}</span>
               </div>
             </div>
           </div>
-          <p className="mt-6 text-sm text-slate-500">Waiting for the next question…</p>
+          <p className="mt-6 text-sm text-muted">Next question coming up…</p>
         </div>
       </Shell>
     );
@@ -337,15 +339,20 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
 
   return (
     <Shell>
-      <p className="text-center text-slate-500">Loading…</p>
+      <p className="text-center text-muted">Loading…</p>
     </Shell>
   );
 }
 
 function Shell({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-8">
-      <div className={wide ? "" : "card"}>{children}</div>
+    <main className="relative mx-auto flex min-h-screen max-w-md flex-col justify-center overflow-hidden px-5 py-8">
+      <div className="blob -right-16 -top-20 h-56 w-56 bg-sun" />
+      <div className="blob -bottom-20 -left-16 h-52 w-52 bg-blush" />
+      <div className={`relative z-10 ${wide ? "" : "card"}`}>{children}</div>
+      <div className="relative z-10 mt-6 flex justify-center">
+        <PoweredByNdi />
+      </div>
     </main>
   );
 }

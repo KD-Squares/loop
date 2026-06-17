@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import BrandMark from "@/components/brand/BrandMark";
 
 export default function HostHeader({ email }: { email: string }) {
   const router = useRouter();
@@ -20,10 +21,10 @@ export default function HostHeader({ email }: { email: string }) {
   const link = (href: string, label: string) => (
     <Link
       href={href}
-      className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+      className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
         pathname.startsWith(href)
           ? "bg-brand text-white"
-          : "text-slate-600 hover:bg-slate-100"
+          : "text-muted hover:bg-cream"
       }`}
     >
       {label}
@@ -31,10 +32,10 @@ export default function HostHeader({ email }: { email: string }) {
   );
 
   return (
-    <header className="border-b border-slate-200 bg-white">
+    <header className="border-b border-line bg-white">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-        <Link href="/dashboard" className="text-xl font-black text-brand">
-          Loop
+        <Link href="/dashboard">
+          <BrandMark size="sm" />
         </Link>
         <nav className="flex items-center gap-1">
           {link("/dashboard", "Library")}

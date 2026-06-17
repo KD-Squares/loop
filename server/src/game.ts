@@ -82,6 +82,7 @@ export interface GameConfig {
   maxPlayers: number;
   hostGraceSeconds: number;
   idleTimeoutSeconds: number;
+  revealSeconds: number; // how long the answer reveal shows before auto-advancing
 }
 
 export class Game {
@@ -95,6 +96,7 @@ export class Game {
   readonly maxPlayers: number;
   readonly hostGraceSeconds: number;
   readonly idleTimeoutSeconds: number;
+  readonly revealSeconds: number;
 
   private readonly io: IO;
   private readonly deck: InternalQuestion[]; // shuffled question order
@@ -110,6 +112,7 @@ export class Game {
   private roundTimer: NodeJS.Timeout | null = null;
   private hostGraceTimer: NodeJS.Timeout | null = null;
   private idleTimer: NodeJS.Timeout | null = null;
+  private revealTimer: NodeJS.Timeout | null = null; // auto-advance after reveal
 
   private hostSocketId: string | null = null;
   private hostConnected = false;
@@ -130,6 +133,7 @@ export class Game {
     this.maxPlayers = cfg.maxPlayers;
     this.hostGraceSeconds = cfg.hostGraceSeconds;
     this.idleTimeoutSeconds = cfg.idleTimeoutSeconds;
+    this.revealSeconds = cfg.revealSeconds;
 
     // Build the deck: randomise QUESTION order, and randomise OPTION positions
     // within each question. Correctness travels with correctOptionId (identity).
@@ -187,6 +191,8 @@ export class Game {
         this.phase = this.currentIndex < 0 ? "lobby" : "reveal";
         this.io.to(this.pin).emit("game:resumed", { phase: this.phase });
         void updateGameStatus(this.gameId, this.phase === "lobby" ? "lobby" : "active");
+        // If we resumed onto a reveal, restart the auto-advance countdown.
+        if (this.phase === "reveal") this.scheduleAutoAdvance();
       }
     }
     this.touch();
@@ -201,10 +207,15 @@ export class Game {
 
     if (this.phase === "finished") return;
 
-    // Pause: timers hold, no new round. Freeze the live round timer if any.
+    // Pause: timers hold, no new round. Freeze the live round timer and any
+    // pending auto-advance so nothing fires while the host is away.
     if (this.roundTimer) {
       clearTimeout(this.roundTimer);
       this.roundTimer = null;
+    }
+    if (this.revealTimer) {
+      clearTimeout(this.revealTimer);
+      this.revealTimer = null;
     }
     const prevPhase = this.phase;
     this.phase = "paused";
@@ -343,12 +354,18 @@ export class Game {
     return { ok: true };
   }
 
-  /** Host pressed Next (or Start). Moves to the next question or finishes. */
+  /** Host pressed Next (or Start), or the reveal auto-advanced. Moves on. */
   advance(): { ok: boolean; error?: string } {
     if (this.phase === "paused")
       return { ok: false, error: "Game is paused (host reconnecting)." };
     if (this.phase === "finished")
       return { ok: false, error: "Game already finished." };
+
+    // Cancel any pending auto-advance so a manual Next doesn't double-fire.
+    if (this.revealTimer) {
+      clearTimeout(this.revealTimer);
+      this.revealTimer = null;
+    }
 
     this.currentIndex += 1;
     if (this.currentIndex >= this.deck.length) {
@@ -569,17 +586,21 @@ export class Game {
       totalTimeMs: r.totalTimeMs,
     }));
 
-    // Reveal to host (full leaderboard).
+    const isLast = this.currentIndex + 1 >= this.deck.length;
+
+    // Reveal to host (full leaderboard) with the auto-advance countdown.
     if (this.hostSocketId) {
       this.io.to(this.hostSocketId).emit("game:reveal_host", {
         roundId: this.roundId,
         questionId: q.questionId,
         correctOptionId: q.correctOptionId,
         leaderboard,
+        nextInSeconds: this.revealSeconds,
+        isLast,
       });
     }
 
-    // Reveal to each player (their own result + rank only).
+    // Reveal to each player (their own result + rank only — never the board).
     const rankByPlayer = new Map(ranked.map((r) => [r.playerId, r]));
     for (const player of this.players.values()) {
       if (!player.socketId) continue;
@@ -596,6 +617,7 @@ export class Game {
         totalScore: player.totalScore,
         rank: mine.rank,
         playersCount: this.players.size,
+        nextInSeconds: this.revealSeconds,
       });
     }
 
@@ -612,7 +634,22 @@ export class Game {
       currentRound: this.currentIndex + 1,
     });
 
+    // Auto-advance: after the reveal window the game moves on by itself, so no
+    // one has to press Next. The host can still press Next/End to go sooner;
+    // advance() clears this timer to avoid a double-fire.
+    this.scheduleAutoAdvance();
+
     this.touch();
+  }
+
+  /** Schedule the automatic move to the next question after the reveal window. */
+  private scheduleAutoAdvance() {
+    if (this.revealTimer) clearTimeout(this.revealTimer);
+    this.revealTimer = setTimeout(() => {
+      this.revealTimer = null;
+      // Only auto-advance if we're still revealing and the host is present.
+      if (this.phase === "reveal" && this.hostConnected) this.advance();
+    }, this.revealSeconds * 1000);
   }
 
   // ---------------------------------------------------------------------------
@@ -640,15 +677,24 @@ export class Game {
     }));
     const podium = leaderboard.filter((r) => r.rank <= 3).slice(0, 3);
 
-    this.io.to(this.pin).emit("game:finished", {
-      podium,
-      leaderboard,
-      quizTitle: this.quizTitle,
-    });
+    // The full podium + leaderboard goes ONLY to the host (the big screen).
     if (this.hostSocketId) {
       this.io.to(this.hostSocketId).emit("game:finished", {
         podium,
         leaderboard,
+        quizTitle: this.quizTitle,
+      });
+    }
+
+    // Each player gets ONLY their own final placement — not the whole board.
+    const rankByPlayer = new Map(ranked.map((r) => [r.playerId, r]));
+    for (const player of this.players.values()) {
+      if (!player.socketId) continue;
+      const mine = rankByPlayer.get(player.playerId);
+      this.io.to(player.socketId).emit("game:finished_player", {
+        rank: mine?.rank ?? 0,
+        totalScore: player.totalScore,
+        playersCount: this.players.size,
         quizTitle: this.quizTitle,
       });
     }
@@ -688,7 +734,8 @@ export class Game {
     if (this.roundTimer) clearTimeout(this.roundTimer);
     if (this.hostGraceTimer) clearTimeout(this.hostGraceTimer);
     if (this.idleTimer) clearTimeout(this.idleTimer);
-    this.roundTimer = this.hostGraceTimer = this.idleTimer = null;
+    if (this.revealTimer) clearTimeout(this.revealTimer);
+    this.roundTimer = this.hostGraceTimer = this.idleTimer = this.revealTimer = null;
   }
 
   // ---------------------------------------------------------------------------

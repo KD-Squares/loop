@@ -35,15 +35,22 @@ export class GameManager {
   private readonly maxPlayers: number;
   private readonly hostGraceSeconds: number;
   private readonly idleTimeoutSeconds: number;
+  private readonly revealSeconds: number;
 
   constructor(
     io: IO,
-    opts: { maxPlayers: number; hostGraceSeconds: number; idleTimeoutSeconds: number }
+    opts: {
+      maxPlayers: number;
+      hostGraceSeconds: number;
+      idleTimeoutSeconds: number;
+      revealSeconds: number;
+    }
   ) {
     this.io = io;
     this.maxPlayers = opts.maxPlayers;
     this.hostGraceSeconds = opts.hostGraceSeconds;
     this.idleTimeoutSeconds = opts.idleTimeoutSeconds;
+    this.revealSeconds = opts.revealSeconds;
   }
 
   hasActiveGame(): boolean {
@@ -90,6 +97,7 @@ export class GameManager {
       maxPlayers: this.maxPlayers,
       hostGraceSeconds: this.hostGraceSeconds,
       idleTimeoutSeconds: this.idleTimeoutSeconds,
+      revealSeconds: this.revealSeconds,
     };
 
     const game = new Game(this.io, cfg);

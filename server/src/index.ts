@@ -23,6 +23,8 @@ const WEB_ORIGIN = process.env.WEB_ORIGIN ?? "http://localhost:3000";
 const MAX_PLAYERS = Number(process.env.MAX_PLAYERS ?? 100);
 const HOST_GRACE_SECONDS = Number(process.env.HOST_GRACE_SECONDS ?? 90);
 const GAME_IDLE_TIMEOUT_SECONDS = Number(process.env.GAME_IDLE_TIMEOUT_SECONDS ?? 1800);
+// How long the answer reveal/leaderboard shows before the game auto-advances.
+const REVEAL_SECONDS = Number(process.env.REVEAL_SECONDS ?? 5);
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
 if (!SERVICE_ROLE_KEY) {
@@ -48,6 +50,7 @@ const manager = new GameManager(io, {
   maxPlayers: MAX_PLAYERS,
   hostGraceSeconds: HOST_GRACE_SECONDS,
   idleTimeoutSeconds: GAME_IDLE_TIMEOUT_SECONDS,
+  revealSeconds: REVEAL_SECONDS,
 });
 
 // ---- Health -----------------------------------------------------------------

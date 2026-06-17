@@ -4,6 +4,10 @@
 // and the in-game view (question, countdown, answers-received, leaderboard) with
 // Next / Skip / End controls. Projector-friendly. The realtime server is the
 // authority — this screen reflects its events and sends host commands.
+//
+// The host is the ONLY screen that shows the full leaderboard + final podium.
+// Between rounds the game auto-advances after a few seconds; the host can press
+// Next to go sooner.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -38,6 +42,8 @@ export default function HostGameClient({
   const [reveal, setReveal] = useState<{
     correctOptionId: string;
     leaderboard: LeaderboardRow[];
+    nextInSeconds: number;
+    isLast: boolean;
   } | null>(null);
   const [finished, setFinished] = useState<{
     podium: LeaderboardRow[];
@@ -85,7 +91,12 @@ export default function HostGameClient({
       setAnswersCount({ received: c.received, total: c.total })
     );
     socket.on("game:reveal_host", (r) => {
-      setReveal({ correctOptionId: r.correctOptionId, leaderboard: r.leaderboard });
+      setReveal({
+        correctOptionId: r.correctOptionId,
+        leaderboard: r.leaderboard,
+        nextInSeconds: r.nextInSeconds,
+        isLast: r.isLast,
+      });
       setPhase("reveal");
     });
     socket.on("game:finished", (f) => {
@@ -116,12 +127,12 @@ export default function HostGameClient({
     socketRef.current?.emit("host:kick", { playerId }, () => {});
   }
 
-  // ---- Finished ----
+  // ---- Finished (host sees the full podium) ----
   if (phase === "finished" && finished) {
     return (
       <div className="text-center">
-        <h1 className="mb-2 text-3xl font-black">🏆 {finished.quizTitle}</h1>
-        <p className="mb-8 text-slate-500">Final results</p>
+        <h1 className="font-display mb-1 text-3xl font-bold">🏆 {finished.quizTitle}</h1>
+        <p className="mb-8 text-muted">Final results</p>
         <Podium podium={finished.podium} leaderboard={finished.leaderboard} />
         <button
           className="btn-primary mt-8"
@@ -139,17 +150,17 @@ export default function HostGameClient({
   return (
     <div className="relative">
       {!connected && (
-        <div className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 ring-1 ring-amber-200">
+        <div className="mb-4 rounded-xl bg-sun/50 p-3 text-sm font-medium text-ink ring-1 ring-line">
           Connecting to the game server…
         </div>
       )}
       {paused && (
-        <div className="mb-4 rounded-lg bg-amber-100 p-4 text-center font-semibold text-amber-900 ring-1 ring-amber-300">
+        <div className="mb-4 rounded-xl bg-sun p-4 text-center font-bold text-ink ring-1 ring-line">
           ⏸ {paused}
         </div>
       )}
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200">
+        <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200">
           {error}
         </div>
       )}
@@ -158,13 +169,16 @@ export default function HostGameClient({
       {phase === "lobby" && (
         <div className="grid gap-6 md:grid-cols-2">
           <div className="card text-center">
-            <p className="text-sm uppercase tracking-wide text-slate-500">
-              Join at <span className="font-semibold">{joinUrl.replace(/^https?:\/\//, "")}</span>
+            <p className="text-sm uppercase tracking-wide text-muted">
+              Join at{" "}
+              <span className="font-semibold text-ink">
+                {joinUrl.replace(/^https?:\/\//, "")}
+              </span>
             </p>
-            <div className="my-4 text-6xl font-black tracking-[0.3em] text-brand">
+            <div className="font-display my-4 text-6xl font-bold tracking-[0.3em] text-brand">
               {pin}
             </div>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted">
               Players enter this PIN on their device.
             </p>
             <button
@@ -176,35 +190,33 @@ export default function HostGameClient({
               Start game
             </button>
             {players.length === 0 && (
-              <p className="mt-2 text-sm text-amber-600">
-                Waiting for players to join…
-              </p>
+              <p className="mt-2 text-sm text-brand">Waiting for players to join…</p>
             )}
           </div>
 
           <div className="card">
-            <h2 className="mb-3 font-semibold">
+            <h2 className="font-display mb-3 text-lg font-bold">
               Players ({players.length})
             </h2>
             <ul className="space-y-2">
               {players.map((p) => (
                 <li
                   key={p.playerId}
-                  className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2"
+                  className="flex items-center justify-between rounded-xl bg-cream px-3 py-2"
                 >
-                  <span className={p.connected ? "" : "text-slate-400"}>
+                  <span className={p.connected ? "font-semibold" : "text-muted"}>
                     {p.nickname} {p.connected ? "" : "(reconnecting…)"}
                   </span>
                   <button
                     onClick={() => kick(p.playerId)}
-                    className="text-sm text-red-600 hover:underline"
+                    className="text-sm font-semibold text-tile-red hover:underline"
                   >
                     Kick
                   </button>
                 </li>
               ))}
               {players.length === 0 && (
-                <li className="text-sm text-slate-400">No players yet.</li>
+                <li className="text-sm text-muted">No players yet.</li>
               )}
             </ul>
           </div>
@@ -215,7 +227,7 @@ export default function HostGameClient({
       {(phase === "question" || phase === "reveal") && question && (
         <div>
           <div className="mb-4 flex items-center justify-between">
-            <span className="text-sm font-semibold text-slate-500">
+            <span className="pill bg-white text-muted ring-1 ring-line">
               Question {question.index + 1} of {question.total}
             </span>
             {phase === "question" ? (
@@ -225,14 +237,14 @@ export default function HostGameClient({
                 size="md"
               />
             ) : (
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-700">
+              <span className="pill bg-tile-green/15 text-tile-green">
                 Answer revealed
               </span>
             )}
           </div>
 
           <div className="card mb-4">
-            <h1 className="text-2xl font-bold">{question.text}</h1>
+            <h1 className="font-display text-2xl font-bold">{question.text}</h1>
           </div>
 
           <div className="mb-4 grid gap-3 sm:grid-cols-2">
@@ -255,7 +267,7 @@ export default function HostGameClient({
 
           {phase === "question" && (
             <div className="card mb-4 text-center">
-              <p className="text-lg font-semibold">
+              <p className="font-display text-lg font-bold">
                 {answersCount.received} / {answersCount.total} answered
               </p>
             </div>
@@ -263,12 +275,17 @@ export default function HostGameClient({
 
           {phase === "reveal" && reveal && (
             <div className="card mb-4">
-              <h3 className="mb-3 font-semibold">Leaderboard</h3>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="font-display font-bold">Leaderboard</h3>
+                <span className="text-sm text-muted">
+                  {reveal.isLast ? "Showing results" : "Next question"} shortly…
+                </span>
+              </div>
               <Leaderboard rows={reveal.leaderboard} />
             </div>
           )}
 
-          <div className="sticky bottom-4 flex gap-3 rounded-xl bg-white p-4 shadow-lg ring-1 ring-slate-200">
+          <div className="sticky bottom-4 flex gap-3 rounded-xl2 bg-white p-4 shadow-card ring-1 ring-line">
             {phase === "question" && (
               <button onClick={() => emit("host:skip")} className="btn-secondary">
                 Skip (no points)
@@ -276,7 +293,7 @@ export default function HostGameClient({
             )}
             {phase === "reveal" && (
               <button onClick={() => emit("host:next")} className="btn-primary">
-                {question.index + 1 >= question.total ? "Show results" : "Next question"}
+                {reveal?.isLast ? "Show results now" : "Next question now"}
               </button>
             )}
             <button onClick={() => emit("host:end")} className="btn-danger ml-auto">

@@ -11,10 +11,10 @@
 import type { ReactNode } from "react";
 
 const STYLES = [
-  { bg: "bg-tile-red", shape: "triangle", label: "Triangle" },
-  { bg: "bg-tile-blue", shape: "diamond", label: "Diamond" },
-  { bg: "bg-tile-yellow", shape: "circle", label: "Circle" },
-  { bg: "bg-tile-green", shape: "square", label: "Square" },
+  { bg: "bg-tile-red", shadow: "#b3293a", shape: "triangle", label: "Triangle" },
+  { bg: "bg-tile-blue", shadow: "#1f49c4", shape: "diamond", label: "Diamond" },
+  { bg: "bg-tile-yellow", shadow: "#b87800", shape: "circle", label: "Circle" },
+  { bg: "bg-tile-green", shadow: "#157a4f", shape: "square", label: "Square" },
 ] as const;
 
 function ShapeIcon({ shape }: { shape: string }): ReactNode {
@@ -64,21 +64,22 @@ export default function AnswerTile({
   const style = STYLES[index % 4];
   const stateRing =
     state === "selected"
-      ? "ring-4 ring-white scale-[0.98]"
+      ? "ring-4 ring-white"
       : state === "correct"
       ? "ring-4 ring-white"
       : "";
-  const stateOpacity = state === "dim" || state === "wrong" ? "opacity-50" : "";
+  const stateOpacity = state === "dim" || state === "wrong" ? "opacity-45" : "";
 
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex min-h-[88px] w-full items-center gap-3 rounded-xl ${style.bg} px-4 py-4 text-left text-lg font-bold text-white shadow-md transition
-        enabled:hover:brightness-105 disabled:cursor-default ${stateRing} ${stateOpacity}`}
+      style={{ boxShadow: `0 6px 0 ${style.shadow}` }}
+      className={`font-display flex min-h-[92px] w-full items-center gap-3 rounded-2xl ${style.bg} px-5 py-4 text-left text-lg font-bold text-white transition-all
+        enabled:hover:brightness-105 enabled:active:translate-y-1 disabled:cursor-default ${stateRing} ${stateOpacity}`}
     >
-      <span className="shrink-0">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/20">
         <ShapeIcon shape={style.shape} />
       </span>
       <span className="flex-1">{text}</span>

@@ -4,6 +4,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import HostHeader from "@/components/auth/HostHeader";
+import PoweredByNdi from "@/components/brand/PoweredByNdi";
 
 export default async function HostLayout({
   children,
@@ -17,9 +18,12 @@ export default async function HostLayout({
   if (!user) redirect("/login");
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <HostHeader email={user.email ?? ""} />
-      <div className="mx-auto max-w-5xl px-6 py-8">{children}</div>
+      <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">{children}</div>
+      <footer className="mt-auto flex justify-center border-t border-line bg-white py-4">
+        <PoweredByNdi />
+      </footer>
     </div>
   );
 }
