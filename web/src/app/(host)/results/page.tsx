@@ -1,8 +1,9 @@
 // Past results list. Reads game_results (decoupled from quizzes, so entries
-// survive quiz deletion via the title snapshot).
+// survive quiz deletion via the title snapshot) and hands them to a client
+// component that supports viewing and deleting each result.
 
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import ResultsClient, { ResultItem } from "./ResultsClient";
 
 export const dynamic = "force-dynamic";
 
@@ -19,43 +20,26 @@ export default async function ResultsPage() {
     .select("id, game_id, quiz_title_snapshot, finished_at, ranking")
     .order("finished_at", { ascending: false });
 
+  const items: ResultItem[] = (results ?? []).map((r) => {
+    const ranking = (r.ranking as RankingEntry[]) ?? [];
+    const winner = ranking.find((e) => e.rank === 1);
+    return {
+      id: r.id,
+      game_id: r.game_id,
+      quiz_title_snapshot: r.quiz_title_snapshot,
+      finished_at: r.finished_at,
+      playersCount: ranking.length,
+      winner: winner?.nickname ?? null,
+    };
+  });
+
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-bold">Past results</h1>
-      <p className="mb-6 text-sm text-slate-500">
+      <h1 className="font-display mb-1 text-2xl font-bold">Past results</h1>
+      <p className="mb-6 text-sm text-muted">
         Every game you&apos;ve hosted, kept even if the quiz is later deleted.
       </p>
-
-      {(!results || results.length === 0) && (
-        <div className="card text-slate-600">No games have finished yet.</div>
-      )}
-
-      <div className="space-y-3">
-        {(results ?? []).map((r) => {
-          const ranking = (r.ranking as RankingEntry[]) ?? [];
-          const winner = ranking.find((e) => e.rank === 1);
-          return (
-            <Link
-              key={r.id}
-              href={`/results/${r.game_id ?? r.id}`}
-              className="card flex items-center justify-between hover:ring-brand/40"
-            >
-              <div>
-                <h2 className="font-semibold">{r.quiz_title_snapshot}</h2>
-                <p className="text-sm text-slate-500">
-                  {new Date(r.finished_at).toLocaleString()} · {ranking.length} players
-                </p>
-              </div>
-              {winner && (
-                <div className="text-right text-sm">
-                  <div className="text-slate-400">Winner</div>
-                  <div className="font-semibold">🥇 {winner.nickname}</div>
-                </div>
-              )}
-            </Link>
-          );
-        })}
-      </div>
+      <ResultsClient initialResults={items} />
     </div>
   );
 }
