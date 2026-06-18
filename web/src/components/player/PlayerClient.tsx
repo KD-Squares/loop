@@ -16,6 +16,8 @@ import Countdown from "@/components/game/Countdown";
 import BrandMark from "@/components/brand/BrandMark";
 import PoweredByNdi from "@/components/brand/PoweredByNdi";
 import BlobBg from "@/components/brand/BlobBg";
+import MuteButton from "@/components/game/MuteButton";
+import { playSfx } from "@/lib/audio";
 import type { PublicQuestion, PlayerRoundResult } from "@/lib/types";
 
 type Stage =
@@ -73,6 +75,7 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
     socket.on("game:reveal_player", (r) => {
       setResult(r);
       setStage("result");
+      playSfx(r.correct ? "correct" : "wrong", 0.7);
     });
     // Players get ONLY their own final placement (no leaderboard/podium).
     socket.on("game:finished_player", (f) => {
@@ -139,6 +142,7 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
 
   function answer(optionId: string) {
     if (!question || selected) return;
+    playSfx("tap", 0.5);
     setSelected(optionId);
     setStage("answered");
     socketRef.current?.emit(
@@ -353,6 +357,9 @@ function Shell({ children, wide }: { children: React.ReactNode; wide?: boolean }
   return (
     <main className="relative mx-auto flex min-h-[100dvh] max-w-md flex-col justify-center px-4 py-6 sm:px-5 sm:py-8">
       <BlobBg />
+      <div className="absolute right-4 top-4 z-10">
+        <MuteButton />
+      </div>
       <div className={wide ? "" : "card"}>{children}</div>
       <div className="mt-6 flex justify-center">
         <PoweredByNdi />

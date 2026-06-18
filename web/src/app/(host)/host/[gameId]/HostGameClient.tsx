@@ -16,6 +16,8 @@ import Countdown from "@/components/game/Countdown";
 import Leaderboard from "@/components/game/Leaderboard";
 import Podium from "@/components/game/Podium";
 import AnswerTile from "@/components/game/AnswerTile";
+import MuteButton from "@/components/game/MuteButton";
+import { playSfx, startMusic, stopMusic } from "@/lib/audio";
 import type {
   LobbyPlayer,
   LeaderboardRow,
@@ -78,7 +80,11 @@ export default function HostGameClient({
     socket.on("disconnect", () => setConnected(false));
 
     socket.on("game:lobby", (p) => {
-      setPlayers(p.players);
+      // Soft blip when a new player joins the lobby.
+      setPlayers((prev) => {
+        if (p.players.length > prev.length) playSfx("join", 0.4);
+        return p.players;
+      });
       setPhase(p.phase);
     });
     socket.on("game:question", (q) => {
@@ -86,6 +92,7 @@ export default function HostGameClient({
       setQuestion(q);
       setPhase("question");
       setAnswersCount({ received: 0, total: 0 });
+      playSfx("questionStart", 0.6);
     });
     socket.on("game:answers_count", (c) =>
       setAnswersCount({ received: c.received, total: c.total })
@@ -98,10 +105,13 @@ export default function HostGameClient({
         isLast: r.isLast,
       });
       setPhase("reveal");
+      playSfx("lock", 0.55);
     });
     socket.on("game:finished", (f) => {
       setFinished(f);
       setPhase("finished");
+      stopMusic();
+      playSfx("finish", 0.7);
     });
     socket.on("game:paused", (p) => setPaused(p.reason));
     socket.on("game:resumed", () => setPaused(null));
@@ -118,10 +128,38 @@ export default function HostGameClient({
 
   function emit(event: "host:start" | "host:next" | "host:skip" | "host:end") {
     setError(null);
+    // Start/stop background music on these host gestures (which satisfy the
+    // browser autoplay rule).
+    if (event === "host:start") startMusic();
+    if (event === "host:end") stopMusic();
     socketRef.current?.emit(event, (res: any) => {
       if (!res?.ok) setError(res?.error ?? "Action failed.");
     });
   }
+
+  // Countdown ticking: play a tick for each of the final 5 seconds of a live
+  // question. Restarts per round and clears on reveal or unmount.
+  useEffect(() => {
+    if (phase !== "question" || !question) return;
+    const limit = question.timeLimitSeconds;
+    const startAfter = Math.max(0, (limit - 5)) * 1000;
+    let ticks = 0;
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const start = setTimeout(() => {
+      interval = setInterval(() => {
+        if (ticks >= Math.min(5, limit)) {
+          if (interval) clearInterval(interval);
+          return;
+        }
+        ticks += 1;
+        playSfx("tick", 0.45);
+      }, 1000);
+    }, startAfter);
+    return () => {
+      clearTimeout(start);
+      if (interval) clearInterval(interval);
+    };
+  }, [phase, question]);
 
   function kick(playerId: string) {
     socketRef.current?.emit("host:kick", { playerId }, () => {});
@@ -131,6 +169,9 @@ export default function HostGameClient({
   if (phase === "finished" && finished) {
     return (
       <div className="text-center">
+        <div className="mb-3 flex justify-end">
+          <MuteButton />
+        </div>
         <h1 className="font-display mb-1 text-3xl font-bold">🏆 {finished.quizTitle}</h1>
         <p className="mb-8 text-muted">Final results</p>
         <Podium podium={finished.podium} leaderboard={finished.leaderboard} />
@@ -149,6 +190,9 @@ export default function HostGameClient({
 
   return (
     <div className="relative">
+      <div className="mb-3 flex justify-end">
+        <MuteButton />
+      </div>
       {!connected && (
         <div className="mb-4 rounded-xl bg-sun/50 p-3 text-sm font-medium text-ink ring-1 ring-line">
           Connecting to the game server…
