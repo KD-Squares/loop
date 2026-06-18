@@ -22,7 +22,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Loop — live quiz games",
+  title: "NDI Loop: Learning Never Ends",
   description: "Build a quiz once, play it live any time. Up to 100 players.",
 };
 
