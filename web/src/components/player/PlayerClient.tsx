@@ -15,6 +15,7 @@ import AnswerTile from "@/components/game/AnswerTile";
 import Countdown from "@/components/game/Countdown";
 import BrandMark from "@/components/brand/BrandMark";
 import PoweredByNdi from "@/components/brand/PoweredByNdi";
+import BlobBg from "@/components/brand/BlobBg";
 import type { PublicQuestion, PlayerRoundResult } from "@/lib/types";
 
 type Stage =
@@ -345,12 +346,15 @@ export default function PlayerClient({ initialPin = "" }: { initialPin?: string 
 }
 
 function Shell({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
+  // min-h uses dvh (the real, chrome-aware viewport height on phones). There is
+  // no overflow-hidden here, so a tall screen (a question plus four tiles)
+  // scrolls instead of being clipped. The clipping is what made the bottom
+  // answers unreachable and "unresponsive" on phones.
   return (
-    <main className="relative mx-auto flex min-h-screen max-w-md flex-col justify-center overflow-hidden px-5 py-8">
-      <div className="blob -right-16 -top-20 h-56 w-56 bg-sun" />
-      <div className="blob -bottom-20 -left-16 h-52 w-52 bg-blush" />
-      <div className={`relative z-10 ${wide ? "" : "card"}`}>{children}</div>
-      <div className="relative z-10 mt-6 flex justify-center">
+    <main className="relative mx-auto flex min-h-[100dvh] max-w-md flex-col justify-center px-4 py-6 sm:px-5 sm:py-8">
+      <BlobBg />
+      <div className={wide ? "" : "card"}>{children}</div>
+      <div className="mt-6 flex justify-center">
         <PoweredByNdi />
       </div>
     </main>

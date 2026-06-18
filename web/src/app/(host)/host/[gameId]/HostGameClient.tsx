@@ -175,7 +175,7 @@ export default function HostGameClient({
                 {joinUrl.replace(/^https?:\/\//, "")}
               </span>
             </p>
-            <div className="font-display my-4 text-6xl font-bold tracking-[0.3em] text-brand">
+            <div className="font-display my-4 text-5xl font-bold tracking-[0.15em] text-brand sm:text-6xl sm:tracking-[0.3em]">
               {pin}
             </div>
             <p className="text-sm text-muted">
@@ -244,7 +244,7 @@ export default function HostGameClient({
           </div>
 
           <div className="card mb-4">
-            <h1 className="font-display text-2xl font-bold">{question.text}</h1>
+            <h1 className="font-display text-xl font-bold sm:text-2xl">{question.text}</h1>
           </div>
 
           <div className="mb-4 grid gap-3 sm:grid-cols-2">
@@ -285,7 +285,7 @@ export default function HostGameClient({
             </div>
           )}
 
-          <div className="sticky bottom-4 flex gap-3 rounded-xl2 bg-white p-4 shadow-card ring-1 ring-line">
+          <div className="sticky bottom-4 flex flex-wrap items-center gap-3 rounded-xl2 bg-white p-4 shadow-card ring-1 ring-line">
             {phase === "question" && (
               <button onClick={() => emit("host:skip")} className="btn-secondary">
                 Skip (no points)

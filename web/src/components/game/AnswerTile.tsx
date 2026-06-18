@@ -76,7 +76,7 @@ export default function AnswerTile({
       onClick={onClick}
       disabled={disabled}
       style={{ boxShadow: `0 6px 0 ${style.shadow}` }}
-      className={`font-display flex min-h-[92px] w-full items-center gap-3 rounded-2xl ${style.bg} px-5 py-4 text-left text-lg font-bold text-white transition-all
+      className={`font-display flex min-h-[68px] w-full items-center gap-3 rounded-2xl ${style.bg} px-4 py-3 text-left text-base font-bold text-white transition-all sm:min-h-[92px] sm:px-5 sm:py-4 sm:text-lg
         enabled:hover:brightness-105 enabled:active:translate-y-1 disabled:cursor-default ${stateRing} ${stateOpacity}`}
     >
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/20">

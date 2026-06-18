@@ -27,10 +27,10 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Your quiz library</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-bold">Your quiz library</h1>
+          <p className="text-sm text-muted">
             Build a quiz once, then host it as many live games as you like.
           </p>
         </div>

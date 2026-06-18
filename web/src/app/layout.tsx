@@ -1,6 +1,13 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fredoka, DM_Sans } from "next/font/google";
 import "./globals.css";
+
+// Mobile viewport: fit the device width and allow zoom (accessibility).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 // Display font (headings, brand) + body font, matching the Loop design doc.
 const fredoka = Fredoka({

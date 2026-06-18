@@ -74,7 +74,10 @@ export type LoopSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 export function connectSocket(): LoopSocket {
   return io(PUBLIC_ENV.socketUrl, {
-    transports: ["websocket"],
+    // Prefer WebSocket, but allow long-polling as a fallback. Mobile networks
+    // and some proxies block or drop pure WebSocket connections; without a
+    // fallback the player can appear connected yet fail to send answers.
+    transports: ["websocket", "polling"],
     autoConnect: true,
     reconnection: true,
     reconnectionAttempts: Infinity,

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import BrandMark from "@/components/brand/BrandMark";
 import PoweredByNdi from "@/components/brand/PoweredByNdi";
+import BlobBg from "@/components/brand/BlobBg";
 
 export default async function HomePage() {
   const supabase = createClient();
@@ -11,16 +12,14 @@ export default async function HomePage() {
   } = await supabase.auth.getUser();
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 text-center">
-      {/* decorative blobs */}
-      <div className="blob -right-24 -top-28 h-80 w-80 bg-sun" />
-      <div className="blob -bottom-28 -left-24 h-72 w-72 bg-blush" />
+    <main className="relative flex min-h-[100dvh] flex-col items-center justify-center px-6 py-10 text-center">
+      <BlobBg />
 
-      <div className="relative z-10 flex flex-col items-center gap-8">
+      <div className="flex flex-col items-center gap-7 sm:gap-8">
         <BrandMark size="lg" />
 
         <div>
-          <h1 className="font-display text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl">
+          <h1 className="font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-6xl">
             Learning never ends.
             <br />
             Keep it looping.

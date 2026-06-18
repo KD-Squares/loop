@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import BrandMark from "@/components/brand/BrandMark";
 import PoweredByNdi from "@/components/brand/PoweredByNdi";
+import BlobBg from "@/components/brand/BlobBg";
 
 type Mode = "login" | "register" | "reset";
 
@@ -86,13 +87,12 @@ export default function AuthForm({ mode }: { mode: Mode }) {
     mode === "login" ? "Host sign in" : mode === "register" ? "Create a host account" : "Reset your password";
 
   return (
-    <main className="relative mx-auto flex min-h-screen max-w-md flex-col justify-center overflow-hidden px-6">
-      <div className="blob -right-20 -top-24 h-64 w-64 bg-sun" />
-      <div className="blob -bottom-24 -left-20 h-56 w-56 bg-blush" />
-      <Link href="/" className="relative z-10 mb-8 flex justify-center">
+    <main className="relative mx-auto flex min-h-[100dvh] max-w-md flex-col justify-center px-5 py-8 sm:px-6">
+      <BlobBg />
+      <Link href="/" className="mb-8 flex justify-center">
         <BrandMark size="md" />
       </Link>
-      <div className="card relative z-10">
+      <div className="card">
         <h1 className="mb-4 text-xl font-bold">{title}</h1>
 
         {error === "DUPLICATE" ? (
