@@ -9,7 +9,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
-const HOST_PREFIXES = ["/dashboard", "/create", "/quiz", "/host", "/results"];
+const HOST_PREFIXES = ["/dashboard", "/create", "/quiz", "/host", "/results", "/admin"];
 const AUTH_PAGES = ["/login", "/register", "/reset-password"];
 
 export async function middleware(request: NextRequest) {

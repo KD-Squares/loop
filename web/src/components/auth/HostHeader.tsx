@@ -7,7 +7,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import BrandMark from "@/components/brand/BrandMark";
 
-export default function HostHeader({ email }: { email: string }) {
+export default function HostHeader({
+  email,
+  isAdmin = false,
+}: {
+  email: string;
+  isAdmin?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
@@ -40,6 +46,14 @@ export default function HostHeader({ email }: { email: string }) {
         <nav className="flex items-center gap-1">
           {link("/dashboard", "Library")}
           {link("/results", "Results")}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="rounded-lg bg-ink px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
+            >
+              Admin
+            </Link>
+          )}
         </nav>
         <div className="flex items-center gap-3">
           <span className="hidden text-sm text-slate-500 sm:inline">{email}</span>
