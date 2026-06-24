@@ -73,6 +73,56 @@ export async function generateQuestions(
   return { questions: parsed, rawCount: parsed.length };
 }
 
+/**
+ * Extract questions that ALREADY exist in the document, understanding its
+ * structure (including correct answers shown on a separate line below the
+ * options, or in an answer key). Returns the faithfully-extracted questions.
+ *
+ * Throws on an unreachable / errored API so the caller can keep the upload and
+ * offer a retry without re-uploading.
+ */
+export async function extractQuestions(input: {
+  text: string;
+}): Promise<GenerateOutput> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "ANTHROPIC_API_KEY is not set. Add it to your environment to read questions."
+    );
+  }
+
+  const client = new Anthropic({ apiKey });
+  const system =
+    "You extract existing quiz questions from a document exactly as written, " +
+    "identifying the correct answer from the document's structure. You return " +
+    "STRICT JSON and nothing else.";
+
+  const message = await client.messages.create({
+    model: MODEL,
+    max_tokens: 32000, // a document can hold many questions; give ample room
+    temperature: 0,
+    system,
+    messages: [{ role: "user", content: buildExtractPrompt(input.text) }],
+  });
+
+  const raw = message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("\n")
+    .trim();
+
+  const parsed = safeParseQuestions(raw);
+  return { questions: parsed, rawCount: parsed.length };
+}
+
+// Shared instruction so questions read as direct, standalone questions.
+const STANDALONE_RULE =
+  '- Write each question directly and standalone. Do NOT reference the source: ' +
+  'never use phrases like "according to the text", "according to the handbook", ' +
+  '"based on the passage", "as mentioned in the document", "per the author", or ' +
+  'similar. Ask about the fact itself (for example: "What is the capital of ' +
+  'France?", not "According to the document, what is the capital of France?").';
+
 function buildPrompt(text: string, count: number): string {
   return [
     `Create exactly ${count} quiz questions from the SOURCE TEXT below.`,
@@ -81,8 +131,42 @@ function buildPrompt(text: string, count: number): string {
     `- Prefer 4-option multiple choice ("mcq"). Use "truefalse" only when natural.`,
     "- MCQ: exactly 4 options, all distinct, exactly one correct.",
     "- True/False: exactly 2 options (True, False), exactly one correct.",
-    "- Questions must be answerable purely from the source text.",
+    "- Questions must be answerable from the facts in the source text.",
+    STANDALONE_RULE,
     "- Keep each question and option concise.",
+    "",
+    "Return ONLY a JSON array, no prose, no markdown fences, of objects shaped:",
+    `[{"text": "...", "type": "mcq" | "truefalse",`,
+    ` "options": [{"id": "a", "text": "..."}, ...],`,
+    ` "correct_option_id": "a"}]`,
+    "",
+    'Option ids must be lowercase letters ("a","b","c","d" for mcq; "a","b" for truefalse).',
+    "correct_option_id MUST match one of the option ids.",
+    "",
+    "SOURCE TEXT:",
+    '"""',
+    text,
+    '"""',
+  ].join("\n");
+}
+
+function buildExtractPrompt(text: string): string {
+  return [
+    "The SOURCE TEXT below ALREADY contains quiz questions, each with answer",
+    "options and an indicated correct answer. The correct answer may appear on a",
+    'separate line below the options (for example "Answer: B", "Ans: C", or the',
+    "full correct option repeated), or in an answer key elsewhere in the document,",
+    "or marked with an asterisk. Read the document structure and extract the",
+    "questions faithfully.",
+    "",
+    "Rules:",
+    "- Extract EVERY question you find. Do not invent new ones and do not skip any.",
+    "- Keep the original question wording and the original answer options.",
+    "- Work out the correct option from the document (the answer line, answer key,",
+    "  or marking) and set correct_option_id to that option.",
+    "- Do not include the answer line itself as if it were an option.",
+    '- Convert any true/false items to type "truefalse" with options True and False.',
+    STANDALONE_RULE,
     "",
     "Return ONLY a JSON array, no prose, no markdown fences, of objects shaped:",
     `[{"text": "...", "type": "mcq" | "truefalse",`,

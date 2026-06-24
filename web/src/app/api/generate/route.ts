@@ -18,8 +18,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { extractPdfText } from "@/lib/pdf";
 import { extractDocxText } from "@/lib/docx";
-import { detectQuestionBank, parseQuestionBank } from "@/lib/question-detect";
-import { generateQuestions } from "@/lib/anthropic";
+import { detectQuestionBank } from "@/lib/question-detect";
+import { generateQuestions, extractQuestions } from "@/lib/anthropic";
 import { isValidQuestion } from "@/lib/validation";
 import type { DraftQuestion, QuestionOption } from "@/lib/types";
 
@@ -89,43 +89,50 @@ export async function POST(req: Request) {
   }
 
   // 3. Decide reuse vs generate.
+  //    If the document already contains a question bank, let the AI read its
+  //    structure and extract the questions faithfully (it understands answers
+  //    shown on a separate line below the options, answer keys, etc.). Otherwise
+  //    generate fresh, standalone questions.
   const detect = detectQuestionBank(extracted.text);
   let path: "parsed" | "generated" = "generated";
   let drafts: DraftQuestion[] = [];
   let note = "";
 
+  const generatorError = (e: unknown) =>
+    NextResponse.json(
+      {
+        error:
+          "The question AI is unavailable right now. Your file is saved — press " +
+          "Generate again to retry.",
+        detail: (e as Error).message,
+        code: "GENERATOR_ERROR",
+      },
+      { status: 502 }
+    );
+
   if (detect.isBank) {
-    path = "parsed";
-    const parsed = parseQuestionBank(extracted.text);
-    drafts = parsed.questions;
-    note = parsed.incomplete
-      ? "We reused questions found in your PDF. Some couldn't be fully read — please review the flagged ones."
-      : "We reused the questions found in your PDF.";
-    if (drafts.length === 0) {
-      // Detection thought it was a bank but parsing produced nothing usable —
-      // fall back to generation rather than returning empty.
-      path = "generated";
+    try {
+      const ex = await extractQuestions({ text: extracted.text });
+      if (ex.questions.length > 0) {
+        path = "parsed";
+        drafts = ex.questions;
+        note =
+          "We found existing questions in your document and reused them. Please " +
+          "double-check the marked correct answers.";
+      }
+    } catch (e) {
+      return generatorError(e);
     }
   }
 
-  if (!detect.isBank || drafts!.length === 0) {
+  if (drafts.length === 0) {
     path = "generated";
     try {
       const gen = await generateQuestions({ text: extracted.text, count });
       drafts = gen.questions;
-      note = "We generated these questions from your PDF with AI.";
+      note = "We generated these questions from your document with AI.";
     } catch (e) {
-      // Keep the upload; allow retry WITHOUT re-uploading.
-      return NextResponse.json(
-        {
-          error:
-            "The question generator is unavailable right now. Your PDF is saved — " +
-            "press Generate again to retry.",
-          detail: (e as Error).message,
-          code: "GENERATOR_ERROR",
-        },
-        { status: 502 }
-      );
+      return generatorError(e);
     }
   }
 
@@ -192,5 +199,25 @@ function normaliseDraft(q: DraftQuestion): DraftQuestion {
   const type: DraftQuestion["type"] =
     q.type === "truefalse" || reIded.length === 2 ? "truefalse" : "mcq";
 
-  return { text: (q.text ?? "").trim(), type, options: reIded, correct_option_id };
+  return {
+    text: stripMetaPrefix((q.text ?? "").trim()),
+    type,
+    options: reIded,
+    correct_option_id,
+  };
+}
+
+/**
+ * Remove source-referencing lead-ins so questions read directly. Safety net in
+ * case the model still starts a question with "According to the document," etc.
+ * Only strips the meta prefix; it never removes real question content.
+ */
+function stripMetaPrefix(text: string): string {
+  const cleaned = text.replace(
+    /^\s*(according to|based on|as (?:stated|mentioned|described|noted|shown|explained)(?: in)?|per|from|in)\s+(?:the\s+)?(text|passage|document|handbook|hand-?book|article|author|material|content|book|notes?|excerpt|manual|chapter|section|reading)\b[\s,:;.\-]*/i,
+    ""
+  );
+  if (!cleaned) return text;
+  // Re-capitalise the first letter after stripping a prefix.
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
