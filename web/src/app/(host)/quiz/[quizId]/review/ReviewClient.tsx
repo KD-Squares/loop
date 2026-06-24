@@ -187,12 +187,12 @@ export default function ReviewClient({
 
   async function regenerate() {
     if (!hasPdf) {
-      setError("There's no PDF to regenerate from. Add questions manually instead.");
+      setError("There's no source file to regenerate from. Add questions manually instead.");
       return;
     }
     setError(null);
     setBusy(true);
-    setNotice("Regenerating from your PDF…");
+    setNotice("Regenerating from your source file…");
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -260,7 +260,7 @@ export default function ReviewClient({
             <input
               type="number"
               min={1}
-              max={50}
+              max={100}
               value={regenCount}
               onChange={(e) => setRegenCount(Number(e.target.value))}
               className="input w-20 py-1"

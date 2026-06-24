@@ -17,6 +17,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { extractPdfText } from "@/lib/pdf";
+import { extractDocxText } from "@/lib/docx";
 import { detectQuestionBank, parseQuestionBank } from "@/lib/question-detect";
 import { generateQuestions } from "@/lib/anthropic";
 import { isValidQuestion } from "@/lib/validation";
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const quizId = String(body.quizId ?? "");
-  const count = Math.max(1, Math.min(50, Number(body.count ?? 10)));
+  const count = Math.max(1, Math.min(100, Number(body.count ?? 10)));
   if (!quizId) return NextResponse.json({ error: "Missing quizId." }, { status: 400 });
 
   const { data: quiz } = await supabase
@@ -44,39 +45,43 @@ export async function POST(req: Request) {
   if (!quiz) return NextResponse.json({ error: "Quiz not found." }, { status: 404 });
   if (!quiz.source_pdf_path)
     return NextResponse.json(
-      { error: "No PDF has been uploaded for this quiz yet." },
+      { error: "No file has been uploaded for this quiz yet." },
       { status: 400 }
     );
 
-  // 1. Download the PDF from private storage.
+  // 1. Download the source file (PDF or DOCX) from private storage.
   const { data: file, error: dlErr } = await supabase.storage
     .from("pdfs")
     .download(quiz.source_pdf_path);
   if (dlErr || !file)
     return NextResponse.json(
-      { error: "Could not read the uploaded PDF. Try uploading it again." },
+      { error: "Could not read the uploaded file. Try uploading it again." },
       { status: 500 }
     );
 
-  // 2. Extract text (server-side, truncated for cost safety).
+  // 2. Extract text (server-side, truncated for cost safety). Pick the reader
+  //    by file extension: .docx via mammoth, otherwise the PDF reader.
+  const isDocx = quiz.source_pdf_path.toLowerCase().endsWith(".docx");
   const buffer = Buffer.from(await file.arrayBuffer());
   let extracted;
   try {
-    extracted = await extractPdfText(buffer);
+    extracted = isDocx
+      ? await extractDocxText(buffer)
+      : await extractPdfText(buffer);
   } catch {
     return NextResponse.json(
-      { error: "We couldn't read text from that PDF. Try a different file." },
+      { error: "We couldn't read text from that file. Try a different file." },
       { status: 500 }
     );
   }
 
-  // Image-only scan: stop and explain. Do NOT fail silently.
+  // Image-only / empty document: stop and explain. Do NOT fail silently.
   if (extracted.looksImageOnly) {
     return NextResponse.json(
       {
-        error:
-          "This PDF looks like a scanned image — no selectable text was found. " +
-          "Upload a text-based PDF, or add questions manually.",
+        error: isDocx
+          ? "We couldn't find selectable text in that Word file. Add questions manually, or try a PDF."
+          : "This PDF looks like a scanned image (no selectable text was found). Upload a text-based PDF, or add questions manually.",
         code: "IMAGE_ONLY",
       },
       { status: 422 }

@@ -8,9 +8,10 @@
 
 import "server-only";
 
-// Characters of extracted text we keep before sending to the model. ~12k chars
-// is plenty for generating a few dozen questions while keeping token cost sane.
-export const MAX_EXTRACT_CHARS = 12000;
+// Characters of extracted text we keep before sending to the model. Larger
+// documents (and up to 100 questions) need more source material, so we keep a
+// generous slice while still bounding token cost.
+export const MAX_EXTRACT_CHARS = 32000;
 
 export interface ExtractResult {
   text: string; // truncated, cleaned

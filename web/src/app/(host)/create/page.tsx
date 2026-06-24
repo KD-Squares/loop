@@ -33,14 +33,19 @@ export default function CreateQuizPage() {
       setFile(null);
       return;
     }
-    const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
-    if (!isPdf) {
-      setFileError("Only PDF files are accepted.");
+    const name = f.name.toLowerCase();
+    const isPdf = f.type === "application/pdf" || name.endsWith(".pdf");
+    const isDocx =
+      f.type ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      name.endsWith(".docx");
+    if (!isPdf && !isDocx) {
+      setFileError("Please upload a PDF or a Word (.docx) file.");
       setFile(null);
       return;
     }
     if (f.size > MAX_BYTES) {
-      setFileError("That PDF is larger than 10 MB. Please split or compress it.");
+      setFileError("That file is larger than 10 MB. Please split or compress it.");
       setFile(null);
       return;
     }
@@ -52,7 +57,7 @@ export default function CreateQuizPage() {
     setError(null);
 
     if (!title.trim()) return setError("Please enter a title.");
-    if (!file) return setError("Please choose a PDF to build from.");
+    if (!file) return setError("Please choose a PDF or Word file to build from.");
     if (timeLimit < 5 || timeLimit > 120)
       return setError("Time limit must be between 5 and 120 seconds.");
 
@@ -70,7 +75,7 @@ export default function CreateQuizPage() {
       const quizId = created.id as string;
 
       // 3. Upload the PDF.
-      setStatus("Uploading PDF…");
+      setStatus("Uploading file…");
       const form = new FormData();
       form.set("quizId", quizId);
       form.set("file", file);
@@ -79,7 +84,7 @@ export default function CreateQuizPage() {
       if (!upRes.ok) throw new Error(up.error ?? "Upload failed.");
 
       // 4. Generate / parse.
-      setStatus("Reading your PDF and preparing questions… this can take a moment.");
+      setStatus("Reading your file and preparing questions… this can take a moment.");
       const genRes = await fetch("/api/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -107,10 +112,11 @@ export default function CreateQuizPage() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <h1 className="mb-1 text-2xl font-bold">Create a quiz</h1>
-      <p className="mb-6 text-sm text-slate-500">
-        Upload a PDF once. Loop will reuse questions it finds, or generate new
-        ones. You&apos;ll review everything before it&apos;s saved.
+      <h1 className="font-display mb-1 text-2xl font-bold">Create a quiz</h1>
+      <p className="mb-6 text-sm text-muted">
+        Upload a PDF or Word (.docx) file once. Loop will reuse questions it finds,
+        or generate new ones (up to 100). You&apos;ll review everything before
+        it&apos;s saved.
       </p>
 
       <form onSubmit={onSubmit} className="card space-y-5">
@@ -131,13 +137,13 @@ export default function CreateQuizPage() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label" htmlFor="count">
-              Number of questions
+              Number of questions (1–100)
             </label>
             <input
               id="count"
               type="number"
               min={1}
-              max={50}
+              max={100}
               className="input"
               value={count}
               onChange={(e) => setCount(Number(e.target.value))}
@@ -163,12 +169,12 @@ export default function CreateQuizPage() {
 
         <div>
           <label className="label" htmlFor="file">
-            Source PDF (max 10 MB)
+            Source file: PDF or Word .docx (max 10 MB)
           </label>
           <input
             id="file"
             type="file"
-            accept="application/pdf,.pdf"
+            accept="application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             onChange={onPickFile}
             disabled={busy}
             className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-2 file:text-white"

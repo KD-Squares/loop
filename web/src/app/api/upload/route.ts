@@ -33,17 +33,20 @@ export async function POST(req: Request) {
   if (!(file instanceof File))
     return NextResponse.json({ error: "No file provided." }, { status: 400 });
 
-  // Type + size guards.
-  const isPdf =
-    file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-  if (!isPdf)
+  // Type + size guards. Accept PDF or Word (.docx).
+  const name = file.name.toLowerCase();
+  const DOCX_MIME =
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const isPdf = file.type === "application/pdf" || name.endsWith(".pdf");
+  const isDocx = file.type === DOCX_MIME || name.endsWith(".docx");
+  if (!isPdf && !isDocx)
     return NextResponse.json(
-      { error: "Only PDF files are accepted. Please upload a .pdf." },
+      { error: "Only PDF or Word (.docx) files are accepted." },
       { status: 400 }
     );
   if (file.size > MAX_BYTES)
     return NextResponse.json(
-      { error: "That PDF is larger than 10 MB. Please split or compress it." },
+      { error: "That file is larger than 10 MB. Please split or compress it." },
       { status: 400 }
     );
 
@@ -55,12 +58,14 @@ export async function POST(req: Request) {
     .single();
   if (!quiz) return NextResponse.json({ error: "Quiz not found." }, { status: 404 });
 
-  const path = `${user.id}/${quizId}/source.pdf`;
+  const ext = isPdf ? "pdf" : "docx";
+  const contentType = isPdf ? "application/pdf" : DOCX_MIME;
+  const path = `${user.id}/${quizId}/source.${ext}`;
   const bytes = Buffer.from(await file.arrayBuffer());
 
   const { error: upErr } = await supabase.storage
     .from("pdfs")
-    .upload(path, bytes, { contentType: "application/pdf", upsert: true });
+    .upload(path, bytes, { contentType, upsert: true });
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
   await supabase.from("quizzes").update({ source_pdf_path: path }).eq("id", quizId);

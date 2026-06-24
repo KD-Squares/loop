@@ -49,9 +49,14 @@ export async function generateQuestions(
 
   const userPrompt = buildPrompt(input.text, input.count);
 
+  // Output budget must scale with the requested count, or the JSON gets cut off
+  // (this is what capped results near ~30 before). Roughly ~140 tokens/question
+  // plus headroom, clamped to a safe ceiling for the model.
+  const maxTokens = Math.min(32000, 1500 + input.count * 160);
+
   const message = await client.messages.create({
     model: MODEL,
-    max_tokens: 4000,
+    max_tokens: maxTokens,
     temperature: 0.4,
     system,
     messages: [{ role: "user", content: userPrompt }],
